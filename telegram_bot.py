@@ -6,7 +6,7 @@ from datetime import datetime
 
 class TelegramBot:
     def __init__(self):
-        token = "7905529564:AAHsERm96aSJvwrSEfCDebh3y2DiKPYXwH8"
+        token = "PUT_YOUR_TOKEN_HERE"
         self.base_url = f"https://api.telegram.org/bot{token}/"
         self.chat_id = "1609932328"
         # True = strict
