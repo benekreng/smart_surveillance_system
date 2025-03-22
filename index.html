@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Surveillance System</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.3/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-icons/1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+    <style>
+        .stream-container img {
+            width: 100%;
+        }
+        * {
+            border-radius: 1rem !important;
+        }
+
+    </style>
+</head>
+<body>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.3/js/bootstrap.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/handlebars.js/4.7.8/handlebars.min.js"></script>
+    <div class="container py-3">
+        <h1>
+            Surveillance System
+            <button class="btn btn-secondary float-end btn-sm" type="button" data-bs-toggle="offcanvas" data-bs-target="#settingsPanel">
+                <i class="bi bi-gear-wide-connected h4"></i>
+            </button>
+        </h1>
+        
+        <!-- start, stop, manual refresh -->
+        <div class="card mb-3">
+            <div class="card-body p-2 ">
+                <button id="startButton" class="btn btn-success  btn-sm"><i class="bi bi-play-circle-fill pe-1"></i>Start </button>
+                <button id="stopButton" class="btn btn-danger  btn-sm" disabled><i class="bi-stop-circle-fill pe-1"></i>Stop </button>
+                <button id="refreshBtn" class="btn btn-secondary  btn-sm"><i class="bi bi-arrow-clockwise pe-1"></i>Refresh</button>
+                <div id="status" class="badge bg-info text-wrap float-end p-2"></div>
+            </div>
+        </div>
+        
+        <!-- live stream card -->
+        <div class="card mb-3">
+            <div class="card-body p-0 ">
+                <div class="stream-container mx-auto  d-block mx-auto" style="max-width: 800px;">
+                    <img id="streamImg" src="/stream/live" alt="Stream shows here" style="border-radius: 0px !important;">
+                </div>
+            </div>
+        </div>
+        
+        <!-- detections -->
+        <div class="card">
+            <div class="card-header d-flex justify-content-between m-0">
+                Recent Detections
+                <button class="btn btn-sm btn-outline-danger " onclick="clearAllDetections()">Delete All</button>
+            </div>
+            <div class="card-body">
+                <div id="detections">
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- video modal -->
+    <div class="modal fade" id="videoModal" tabindex="-3">
+        <div class="modal-dialog  modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="videoModalLabel" style="font-size: 1em;"></h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body p-0">
+                    <img id="videoStream" src="" alt="Recording shows here" style="width:100%; border-radius: 0px !important;">
+                </div>
+            </div>
+        </div>
+    </div>
+
+  
+    <!-- Settings offcanvas -->
+    <div class="offcanvas offcanvas-end" tabindex="-1" id="settingsPanel">
+        <div class="offcanvas-header">
+            <h5 class="offcanvas-title" id="settingsPanelLabel">Settings</h5>
+            <button type="button" class="btn-close text-reset" data-bs-dismiss="offcanvas"></button>
+        </div>
+        <div class="offcanvas-body">
+        <!-- general settings -->
+            <div class="card mb-4">
+                <div class="card-header">General Settings</div>
+                <div class="card-body">
+                    <h5>Evaluation Mode</h5>
+                    <div class="form-check form-switch  mb-3">
+                        <input class="form-check-input" type="checkbox" id="evaluationModeSwitch">
+                        <label class="form-check-label " for="evaluationModeSwitch">
+                            <span id="evaluationModeLabel">Relaxed Mode</span>
+                        </label>
+
+                    </div>
+                    <div class="alert alert-warning" role="alert">
+                        Changes will be applied after restarting the pipeline
+                    </div>
+                    <div class="text-muted small">
+                        <p><strong>Strict mode:</strong> More alerts but more sensitive to potential security concerns</p>
+                        <p><strong>Relaxed mode:</strong> Fewer alerts but less sensitive to security events</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Upload form -->
+            <div class="card">
+                <div class="card-header">Identity Management</div>
+                <div class="card-body">
+                    <h5>Add New Identity</h5>
+                    <form id="uploadForm">
+                        <div class="mb-2">
+                            <label for="identityName" class="form-label">Name:</label>
+                            <input type="text" id="identityName" name="identityName" class="form-control" required >
+                        </div>
+                        <div class="mb-2">
+
+                            <label for="identityImage" class="form-label">Image:</label>
+                            <input type="file" id="identityImage" name="identityImage" class="form-control" accept="image/*" required >
+                        </div>
+                        <button type="submit" class="btn btn-primary">Upload Identity</button>
+                    </form>
+                    <p id="uploadStatus" class="mt-2"></p>
+                    <hr>
+                    <h5>Stored Identities</h5>
+                    <ul id="identityList" class="list-group"></ul>
+                </div>
+            </div>
+        </div>
+    </div>
+  
+    <!-- Handle bars template -->
+    <script id="detections-template" type="text/x-handlebars-template" >
+        <div class="card mb-2 {{borderColor}}">
+            <div class="card-body">
+            <div><strong>Time:</strong> {{timestamp}}</div>
+            <div><strong>Evaluations:</strong>Strict: {{{strictStatus}}} | Relaxed: {{{relaxedStatus}}}</div>
+            <div><strong>Recognized:</strong> {{{identitiesHtml}}}</div>
+            <div>
+                <a data-bs-toggle="collapse" href="#details-{{id}}">Details</a>
+                    <div class="collapse mt-2" id="details-{{id}}" >
+                    <div class="details-container">{{{detectionDetails}}}</div>
+                </div>
+            </div>
+            <div class="mt-2">
+                <button onclick="openVideoModal('{{video_path }}', '{{rawTimestamp}}')" class="btn btn-primary btn-sm">View </button>
+                <a href="/download/{{video_path}}"  class="btn btn-success btn-sm">Download </a>
+                <button onclick="deleteDetection('{{id}}')" class="btn btn-danger btn-sm"> Delete</button>
+            </div>
+            </div>
+        </div>
+    </script>
+  
+    
+    <script>
+    let videoModal;
+    let modalTimeout;
+
+    $(document).ready(function(){
+        videoModal = new bootstrap.Modal(document.getElementById('videoModal'));
+        
+        $('#videoModal').on('hidden.bs.modal', function (){
+            $('#videoStream').attr('src', '');
+            clearTimeout(modalTimeout);
+        });
+        
+        $('#startButton').on('click', startPipeline);
+        $('#stopButton').on('click', stopPipeline);
+        $('#refreshBtn').on('click', function(){
+            checkStatus();
+            loadDetections();
+        });
+        
+        checkStatus();
+        loadDetections();
+        loadIdentities();
+        
+        setInterval(checkStatus, 1000);
+        //setInterval(loadDetections, 3000);
+        setInterval(loadIdentities, 3000);
+        
+        // Initialize evaluation mode switch
+        initPreferences();
+    });
+
+    // Switch evaluation mode
+    function initPreferences(){
+        const evaluationSwitch = document.getElementById('evaluationModeSwitch');
+        const evaluationLabel = document.getElementById('evaluationModeLabel');
+
+        $.ajax({
+            url: '/api/preferences',
+            type: 'GET',
+            success: function(data){
+                const pref = data.preferences;
+                
+                // Set slider and label
+                evaluationSwitch.checked = pref.evaluation_mode;
+                evaluationLabel.textContent = pref.evaluation_mode ? 'Strict Mode' : 'Relaxed Mode';
+                
+                evaluationSwitch.addEventListener('change', function(){
+                    const mode = this.checked
+                    evaluationLabel.textContent = this.checked ? 'Strict Mode' : 'Relaxed Mode';
+                    
+                    setEvalPref(mode);
+                });
+            },
+            error: function(error){
+                console.error('Error fetching user settings:', error);
+            }
+        });
+    }
+    
+    function setEvalPref(evaluation_preference){
+        $.ajax({
+            url: '/api/settings/set-evaluation-preference',
+            type: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify({ evaluation_preference: evaluation_preference}),
+            success: function(result){
+                console.log('Evaluation preference set to:', evaluation_preference);
+            },
+            error: function(error){
+                console.error('Error setting evaluation preference:', error);
+                alert('Error setting evaluation preference');
+            }
+        });
+    }
+
+    // Open video modal
+    function openVideoModal(video_path, timestamp){
+       const encodedPath = encodeURIComponent(video_path);
+       console.log("Encoded Path:", encodedPath);
+       $('#videoModalLabel').text('Detection: ' + new Date(timestamp).toLocaleString());
+       $('#videoStream').attr('src', `/stream/recording/${encodedPath}`);
+       videoModal.show();
+    }
+
+    // Delete detection
+    function deleteDetection(id){
+        if (confirm('Do you want to delete this detection?')){
+            $.ajax({
+                url: `/api/detection/${id}`,
+                type: 'DELETE',
+                success: function(result){
+                    if (result.status === 'success'){
+                        loadDetections();
+                    }
+                },
+                error: function(error){
+                    console.error('Error;', error);
+                    alert('Error deleting detection');
+                }
+            });
+        }
+    }
+
+    // Clear all detections
+    function clearAllDetections(){
+        if (confirm('Delete all detections?')){
+            $.ajax({
+                url: '/api/detections/all',
+                type: 'DELETE',
+                success: function(result){
+                    if (result.status === 'success'){
+                        loadDetections();
+                    }
+                },
+                error: function(error){
+                    console.error('Error:', error);
+                    alert('Error clearing detections');
+                }
+            });
+        }
+    }
+
+    // Load all detections 
+    function loadDetections(){
+      $.ajax({
+        url: '/api/detections',
+        type: 'GET',
+        success: function(data){
+            const detections = data.detections;
+            if (!detections || detections.length === 0){
+                $('#detections').html('<div class="text-center">No detections found</div>');
+                return;
+            }
+            
+            // Assemble tempalte using handlebars
+            const templateSource = document.getElementById('detections-template').innerHTML;
+            const template = Handlebars.compile(templateSource);
+
+            const html = detections.map(det => template({
+                id: det.id,
+                borderColor: JSON.parse(det.strict_eval_safe)
+                    ? '<span class="badge bg-success">Safe</span>'
+                    : '<span class="badge bg-danger">Alert</span>',
+                timestamp: new Date(det.timestamp).toLocaleString(),
+                rawTimestamp: det.timestamp,
+                identitiesHtml: (JSON.parse(det.identities || '[]').length
+                    ? JSON.parse(det.identities).map(identity =>
+                        `<span class="badge bg-info me-1">${identity.id} (${(identity.confidence * 100)}%)</span>`
+                                                    ).join('')
+                    : '<span class="text-muted">None</span>'),
+                strictStatus: JSON.parse(det.strict_eval_safe)
+                    ? '<span class="badge bg-success">Safe</span>'
+                    : '<span class="badge bg-danger">Alert</span>',
+                relaxedStatus: JSON.parse(det.relaxed_eval_safe)
+                    ? '<span class="badge bg-success">Safe</span>'
+                    : '<span class="badge bg-danger">Alert</span>',
+                detectionDetails: 
+                    `<strong>Face Results:</strong> ${JSON.stringify(JSON.parse(det.face_results))}<br>
+                    <strong>Face Scan Counts:</strong> ${JSON.stringify(JSON.parse(det.face_amt_eval))}<br>
+                    <strong>Simultaneous Face IDs:</strong> ${JSON.stringify(JSON.parse(det.simultaneous_face_ids))}<br>
+                    <strong>Simultaneous Body IDs:</strong> ${JSON.stringify(JSON.parse(det.simultaneous_body_ids))}`,
+                video_path: det.video_path
+            })).join('');
+
+            $('#detections').html(html);
+        },
+        error: function(error){
+          console.error(error);
+        }
+      });
+    }
+
+	async function loadIdentities(){
+		const response = await fetch("/api/identities");
+		const data = await response.json();
+		const identityList = document.getElementById("identityList");
+		identityList.innerHTML = "";
+
+        // Load identities in setting view
+		if (data.status === "success"){
+			data.identities.forEach(identity => {
+				const listItem = document.createElement("li");
+				listItem.classList.add('list-group-item', 'd-flex', 'justify-content-between', 'align-items-center');
+				listItem.textContent = identity.name;
+
+				// Add delete button
+				const deleteBtn = document.createElement("button");
+				deleteBtn.classList.add('btn', 'btn-sm', 'btn-danger');
+				deleteBtn.textContent = "Delete";
+				deleteBtn.onclick = async () => {
+					await deleteIdentity(identity.name);
+					loadIdentities();
+				};
+
+				listItem.appendChild(deleteBtn);
+				identityList.appendChild(listItem);
+			});
+		}
+	}
+
+    // Delete identity
+    async function deleteIdentity(name){
+        const response = await fetch(`/api/identities/delete/${name}`, { method: "DELETE" });
+        const data = await response.json();
+        alert(data.message);
+    }
+
+    // Upload identity form submit
+    document.getElementById("uploadForm").onsubmit = async function (event){
+        event.preventDefault();
+
+        const formData = new FormData();
+        formData.append("name", document.getElementById("identityName").value);
+        formData.append("image", document.getElementById("identityImage").files[0]);
+
+        const response = await fetch("/api/identities/add", {
+            method: "POST",
+            body: formData
+        });
+
+        const data = await response.json();
+        document.getElementById("uploadingStatus").textContent = data.message;
+        loadIdentities();
+    };
+
+    // Start pipeline
+    function startPipeline(){
+        $('#status').html('Status: Starting');
+        $('#startButton').prop('disabled', true);
+        
+        $.ajax({
+        url: '/api/start', 
+        type: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({}),
+        success: function(data){
+            $('#status').text('Status: ' + data.message);
+            setTimeout(checkStatus, 1000);
+            $('#streamImage').attr('src', '/stream/live?' + new Date().getTime());
+        },
+        error: function(error){
+            $('#status').html('Error starting pipeline');
+            console.error(error);
+            $('#startButton').prop('disabled', false);
+        }
+        });
+    }
+
+    // Stop pipeline
+    function stopPipeline(){
+        $('#status').html('Status: Stopping');
+        $('#stopButton').prop('disabled', true);
+        
+        $.ajax({
+            url: '/api/stop',
+            type: 'POST',
+            success: function(data){
+                $('#status').text('Status: ' + data.message);
+                setTimeout(checkStatus, 1000);
+            },
+            error: function(error){
+                $('#status').html('Error stopping pipeline');
+                console.error(error);
+                $('#stopButton').prop('disabled', false);
+            }
+        });
+    }
+
+    // Check status
+    function checkStatus(){
+    $.ajax({
+        url: '/api/status',
+        type: 'GET',
+        success: function(data){
+            let statusText = data.is_running ? 'Running' : 'Stopped';
+            if (data.is_running && data.state) statusText;
+            
+            $('#status').text('Status: ' + statusText);
+
+            $('#startButton').prop('disabled', data.is_running);
+            $('#stopButton').prop('disabled',!data.is_running);
+        },
+        error: function(error){
+            $('#status').text('Status: Error checking status');
+            console.error(error);
+        }
+    });
+    }
+  </script>
+</body>
+</html>
